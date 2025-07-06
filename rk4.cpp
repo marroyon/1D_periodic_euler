@@ -19,20 +19,14 @@ Un(_Un)
   coeffsB[2] = 2.;
   coeffsB[3] = 1.;
 
-  fi = new DataStruct<T>[nSteps];
-
-  fi[0].setSize(Un.getSize());
-  fi[1].setSize(Un.getSize());
-  fi[2].setSize(Un.getSize());
-  fi[3].setSize(Un.getSize());
-
+  fi_cur.setSize(Un.getSize());
+  f_accum.setSize(Un.getSize());
   Ui.setSize(Un.getSize());
 };
 
 template<class T>
 RungeKutta4<T>::~RungeKutta4()
 {
-  delete[] fi;
   delete[] coeffsA;
   delete[] coeffsB;
 };
@@ -47,6 +41,11 @@ template<class T>
 void RungeKutta4<T>::initRK()
 {
   currentStep = 0;
+  T *dataFaccum = f_accum.getData();
+  for (int n = 0; n < f_accum.getSize(); n++)
+  {
+    dataFaccum[n] = 0.;
+  }
 };
 
 template<class T>
@@ -54,71 +53,59 @@ void RungeKutta4<T>::stepUi(T dt)
 {
   assert(currentStep < nSteps);
 
-  if(currentStep == 0)
-  {
-    T *dataUi = Ui.getData();
-    const T *dataU  = Un.getData();
+  T *dataUi = Ui.getData();
+  const T *dataU = Un.getData();
+  const T *dataFi = fi_cur.getData();
 
-    for(int n = 0; n < Ui.getSize(); n++)
+  if (currentStep == 0)
+  {
+    for (int n = 0; n < Ui.getSize(); n++)
     {
       dataUi[n] = dataU[n];
     }
   }
   else
   {
-    T *datafi = fi[currentStep-1].getData();
-    T *dataUi = Ui.getData();
-    const T *dataU  = Un.getData();
-
-    for(int n = 0; n < Ui.getSize(); n++)
+    for (int n = 0; n < Ui.getSize(); n++)
     {
-      dataUi[n] = dataU[n] + coeffsA[currentStep]*dt* datafi[n];
+      dataUi[n] = dataU[n] + coeffsA[currentStep] * dt * dataFi[n];
     }
   }
+
+  // Acumular término ponderado en f_accum
+  T *dataFaccum = f_accum.getData();
+  T b = coeffsB[currentStep];
+  for (int n = 0; n < Ui.getSize(); n++)
+  {
+    dataFaccum[n] += b * dataFi[n];
+  }
+
+  currentStep++;
 };
 
 template<class T>
 void RungeKutta4<T>::finalizeRK(const T dt)
 {
   T *dataUn = Un.getData();
-  T *dataUi = Ui.getData();
-
-  // set Ui to 0
-  for(int n = 0; n < Ui.getSize(); n++)
-  {
-    dataUi[n] = 0.;
-  }
-  
-  for(int s = 0; s < nSteps; s++)
-  {
-    const T *dataFi = fi[s].getData();
-    const T b = coeffsB[s];
-
-    for(int n = 0; n < Ui.getSize(); n++)
-    {
-      dataUi[n] += b * dataFi[n];
-    }
-  }
-
+  const T *dataFaccum = f_accum.getData();
   const T oneDiv6 = 1. / 6.;
-  for(int n = 0; n < Ui.getSize(); n++)
+
+  for (int n = 0; n < Un.getSize(); n++)
   {
-    dataUn[n] += dt * oneDiv6 * dataUi[n];
+    dataUn[n] += dt * oneDiv6 * dataFaccum[n];
   }
 };
 
 template<class T>
 void RungeKutta4<T>::setFi(DataStruct<T> &_F)
 {
-  T *dataFi = fi[currentStep].getData();
-  const T *dataF  = _F.getData();
+  T *dataFi = fi_cur.getData();
+  const T *dataF = _F.getData();
 
-  for(int n = 0; n < Ui.getSize(); n++)
+  for (int n = 0; n < Ui.getSize(); n++)
   {
     dataFi[n] = dataF[n];
   }
-
-  currentStep++;
 };
 
 template<class T>
@@ -126,6 +113,7 @@ DataStruct<T> * RungeKutta4<T>::currentU()
 {
   return &Ui;
 };
+
 
 
 template class RungeKutta4<float>;
